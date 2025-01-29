@@ -29,15 +29,15 @@ fn get_model() -> RLer {
 }
 
 fn random_model() -> RLer {
-    let fp = random_nn((-1.0, 1.0), &[9, 5, 1]);
-    let sp = random_nn((-1.0, 1.0), &[9, 5, 1]);
+    let fp = random_nn((-1.0, 1.0), &[9, 5, 3]);
+    let sp = random_nn((-1.0, 1.0), &[27, 5, 1]);
     RLer {
         first_pass: fp,
         second_pass: sp,
         p: 0.9,
         p_decay: 0.995,
         min_p: 0.05,
-        lr: 0.1,
+        lr: 0.05,
         lr_decay: 0.999,
         imp_decay: 0.9,
         min_lr: 0.001,

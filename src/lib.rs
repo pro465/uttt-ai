@@ -10,7 +10,7 @@ pub fn random_nn(range: (f64, f64), layout: &[usize]) -> nn::NN {
     let mut rng = rand::rng();
     let (a, b) = range;
     for (&m, &n) in layout.iter().zip(layout.iter().skip(1)) {
-        let mf = (m as f64).sqrt();
+        let mf = m as f64;
         let (an, bn) = (a / mf, b / mf);
         v.push(
             (0..=n)

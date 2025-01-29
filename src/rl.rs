@@ -52,7 +52,7 @@ impl RLer {
             for p in 0..2 {
                 let fb = g.feedback(p);
                 let (log, l, o) = self.run(g, p);
-                let c = -(fb + [cost, -cost][p] - o);
+                let c = fb + [cost, -cost][p] - o;
                 let d = self.second_pass.train(vec![c * lr], l);
                 for (i, j) in d.chunks_exact(d.len() / 9).zip(log.into_iter()) {
                     self.first_pass.train(i.to_vec(), j);
