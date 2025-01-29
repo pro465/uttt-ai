@@ -67,13 +67,13 @@ impl RLer {
         game_res
     }
 
-    pub fn gen_game_for_training(&self) -> (Vec<Square>, GameResult) {
+    pub fn gen_game_for_training(&self, recursion_depth: u64) -> (Vec<Square>, GameResult) {
         let mut g = Square::new();
         let mut v = Vec::new();
         let mut p = 0;
         while g.analyze().is_ongoing() {
             v.push(g.clone());
-            let (x, y) = self.gen_move(&g, p, false);
+            let (x, y) = self.gen_move(&g, p, recursion_depth).1;
             g.put(x, y, p);
             p ^= 1;
         }
@@ -81,34 +81,27 @@ impl RLer {
         (v, g.analyze())
     }
 
-    pub fn gen_move(&self, game: &Square, player: PlayerId, db: bool) -> Move {
+    pub fn gen_move(&self, game: &Square, player: PlayerId, rem_depth: u64) -> (f64, Move) {
         let moves = game.valid_moves();
         let mut rng = rand::rng();
 
-        if db {
-            println!("{}", &game);
-        }
         if rng.random_bool(self.p) {
-            if db {
-                println!("random");
-            }
-            return *moves.choose(&mut rng).unwrap();
+            return (0., *moves.choose(&mut rng).unwrap());
         }
         let (mut bsc, mut bm) = (f64::NEG_INFINITY, (9, 9));
         let mut g = game.clone();
         for (x, y) in moves {
             let p = game.prev();
             g.put(x, y, player);
-            let sc = self.run(&g, player).2;
-            if db {
-                dbg!(x, y, sc);
-            }
+            let sc = if rem_depth == 0 || !g.analyze().is_ongoing() { self.run(&g, player).2 } else  {
+                -self.gen_move(&g, 1-player, rem_depth-1).0
+            };
             if sc > bsc {
                 bsc = sc;
                 bm = (x, y);
             }
             g.reset(p, x, y);
         }
-        bm
+        (bsc, bm)
     }
 }

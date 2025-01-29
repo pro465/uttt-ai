@@ -2,6 +2,8 @@ use rl::RLer;
 use std::io::*;
 use uttt::*;
 
+const REC_LVL: u64 = 3;
+
 fn main() {
     let mut rler = get_model();
     train_model(&mut rler);
@@ -54,7 +56,7 @@ fn train_model(rler: &mut RLer) {
         .parse()
         .expect("not an integer");
     for i in 0..n {
-        let (g, gr) = rler.gen_game_for_training();
+        let (g, gr) = rler.gen_game_for_training(REC_LVL);
         println!("{i} {:?}", rler.train(g, gr));
     }
 }
@@ -90,7 +92,7 @@ fn play_with_model(model: &mut RLer) -> bool {
         let (x, y) = if is_human {
             get_move(&g)
         } else {
-            model.gen_move(&g, current_turn, false)
+            model.gen_move(&g, current_turn, REC_LVL).1
         };
         println!(
             "{} chose subsquare {}, cell {}",
