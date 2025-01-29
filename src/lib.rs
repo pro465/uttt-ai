@@ -2,6 +2,7 @@ pub mod game;
 pub mod nn;
 pub mod rl;
 pub mod storage;
+pub mod alloc;
 
 use rand::prelude::*;
 

@@ -2,12 +2,15 @@ use rl::RLer;
 use std::io::*;
 use uttt::*;
 
-const REC_LVL: u64 = 3;
+use alloc::Alloc;
+
+const REC_LVL: u64 = 2;
 
 fn main() {
     let mut rler = get_model();
-    train_model(&mut rler);
-    while play_with_model(&mut rler) {}
+    let mut alloc = Alloc::new();
+    train_model(&mut rler, &mut alloc);
+    while play_with_model(&mut rler, &mut alloc) {}
     save_model(rler);
 }
 
@@ -32,7 +35,7 @@ fn get_model() -> RLer {
 
 fn random_model() -> RLer {
     let fp = random_nn((-1.0, 1.0), &[9, 5, 3]);
-    let sp = random_nn((-1.0, 1.0), &[27, 5, 1]);
+    let sp = random_nn((-1.0, 1.0), &[36, 5, 1]);
     RLer {
         first_pass: fp,
         second_pass: sp,
@@ -46,7 +49,7 @@ fn random_model() -> RLer {
     }
 }
 
-fn train_model(rler: &mut RLer) {
+fn train_model(rler: &mut RLer, alloc: &mut Alloc) {
     let s = input("train the model? (y/n): ");
     if !["Y", "y"].contains(&s.trim()) {
         return;
@@ -56,8 +59,8 @@ fn train_model(rler: &mut RLer) {
         .parse()
         .expect("not an integer");
     for i in 0..n {
-        let (g, gr) = rler.gen_game_for_training(REC_LVL);
-        println!("{i} {:?}", rler.train(g, gr));
+        let (g, gr) = rler.gen_game_for_training(REC_LVL, alloc);
+        println!("{i} {:?} {}", rler.train(g.clone(), gr, alloc), g.len());
     }
 }
 
@@ -71,7 +74,7 @@ fn save_model(model: RLer) {
     storage::save(model, fname.trim()).expect("an error occured");
 }
 
-fn play_with_model(model: &mut RLer) -> bool {
+fn play_with_model(model: &mut RLer, alloc: &mut Alloc) -> bool {
     let s = input("play with the model? (will train the model too) (y/n): ");
     if !["Y", "y"].contains(&s.trim()) {
         return false;
@@ -92,7 +95,7 @@ fn play_with_model(model: &mut RLer) -> bool {
         let (x, y) = if is_human {
             get_move(&g)
         } else {
-            model.gen_move(&g, current_turn, REC_LVL).1
+            model.gen_move(&g, current_turn, REC_LVL, alloc).1
         };
         println!(
             "{} chose subsquare {}, cell {}",
@@ -106,7 +109,7 @@ fn play_with_model(model: &mut RLer) -> bool {
     }
     println!("{}", &g);
     v.push(g.clone());
-    model.train(v, g.analyze());
+    model.train(v, g.analyze(), alloc);
     true
 }
 

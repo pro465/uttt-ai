@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::iter::once;
+use std::mem::swap;
+use crate::alloc::Alloc;
 
 fn f(x: f64) -> f64 {
     assert!(!x.is_nan());
@@ -22,9 +24,8 @@ impl NN {
     pub fn new(layers: Vec<Vec<Vec<f64>>>) -> Self {
         Self { layers }
     }
-    pub fn run(&self, mut inp: Vec<f64>) -> (Vec<Vec<f64>>, Vec<f64>) {
-        let mut res = vec![inp.clone()];
-        let mut next = Vec::new();
+    pub fn run(&self, inp: &mut Vec<f64>, res: &mut Vec<Vec<f64>>, alloc: &mut Alloc) {
+        let mut next = alloc.alloc();
         for layer in self.layers.iter() {
             next.clear();
             for n in layer {
@@ -34,24 +35,26 @@ impl NN {
                 }
                 next.push(val);
             }
-            res.push(next.clone());
+            let mut buf = alloc.alloc();
+            buf.clone_from(&next);
+            res.push(buf);
             for i in next.iter_mut() {
                 *i = f(*i);
             }
-            (next, inp) = (inp, next);
+            swap(inp, &mut next);
         }
-        (res, inp)
+        alloc.dealloc(next)
     }
-    pub fn train(&mut self, mut dt: Vec<f64>, log: Vec<Vec<f64>>) -> Vec<f64> {
-        let mut next = Vec::new();
-        for (layer, inps) in self.layers.iter_mut().zip(&log).rev() {
+    pub fn train(&mut self, dt: &mut Vec<f64>, log: &[Vec<f64>], alloc: &mut Alloc) {
+        let mut next = alloc.alloc();
+        for (layer, inps) in self.layers.iter_mut().zip(log).rev() {
             next.clear();
             let l = layer[0].len();
             next.reserve_exact(l);
             for _ in 0..l {
                 next.push(0.);
             }
-            for ((n, i), d) in layer.iter_mut().zip(inps).zip(&dt) {
+            for ((n, i), d) in layer.iter_mut().zip(inps).zip(dt.iter()) {
                 let d = dfr(*i) * d;
                 let wsum = n.iter().map(|v| v.abs()).sum::<f64>();
                 for (idx, w) in n.iter_mut().enumerate() {
@@ -60,8 +63,8 @@ impl NN {
                     next[idx] += d * cont;
                 }
             }
-            (dt, next) = (next, dt);
+            swap(dt, &mut next);
         }
-        dt
+        alloc.dealloc(next)
     }
 }
