@@ -45,7 +45,7 @@ impl NN {
         }
         alloc.dealloc(next)
     }
-    pub fn train(&mut self, dt: &mut Vec<f64>, log: &[Vec<f64>], alloc: &mut Alloc) {
+    pub fn train(&mut self, dt: &mut Vec<f64>, log: Vec<Vec<f64>>, alloc: &mut Alloc) {
         let mut next = alloc.alloc();
         for (layer, inps) in self.layers.iter_mut().zip(log).rev() {
             next.clear();
@@ -54,7 +54,7 @@ impl NN {
             for _ in 0..l {
                 next.push(0.);
             }
-            for ((n, i), d) in layer.iter_mut().zip(inps).zip(dt.iter()) {
+            for ((n, i), d) in layer.iter_mut().zip(&inps).zip(dt.iter()) {
                 let d = dfr(*i) * d;
                 let wsum = n.iter().map(|v| v.abs()).sum::<f64>();
                 for (idx, w) in n.iter_mut().enumerate() {
@@ -64,6 +64,7 @@ impl NN {
                 }
             }
             swap(dt, &mut next);
+            alloc.dealloc(inps)
         }
         alloc.dealloc(next)
     }

@@ -11,4 +11,13 @@ impl Alloc {
         v.clear();
         self.0.push(v)
     }
+
+    pub fn dealloc_bulk(&mut self, v: &mut Vec<Vec<f64>>) {
+        for v in v.iter_mut() { v.clear(); }
+        self.0.append(v)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }

@@ -45,7 +45,9 @@ impl RLer {
             input2.push([0., 1.][game.is_valid1(i) as usize]);
         }
         self.second_pass.run(&mut input2, &mut l, alloc);
-        (log, l, input2[0])
+        let res = input2[0];
+        alloc.dealloc(input2);
+        (log, l, res)
     }
 
     pub fn train(&mut self, game: Vec<Square>, game_res: GameResult, alloc: &mut Alloc) -> GameResult {
@@ -63,8 +65,8 @@ impl RLer {
                 let (log, l, o) = self.run(g, p, alloc);
                 let c = fb + [cost, -cost][p] - o;
                 d.push(c*lr);
-                self.second_pass.train(&mut d, &l, alloc);
-                for (i, j) in d.chunks_exact(d.len() / 9).zip(&log) {
+                self.second_pass.train(&mut d, l, alloc);
+                for (i, j) in d.chunks_exact(d.len() / 9).zip(log) {
                     d2.extend_from_slice(i);
                     self.first_pass.train(&mut d2, j, alloc);
                     d2.clear();
@@ -99,15 +101,21 @@ impl RLer {
     pub fn gen_move(&self, game: &Square, player: PlayerId, rem_depth: u64, alloc: &mut Alloc) -> (f64, Move) {
         let moves = game.valid_moves();
         let mut g = game.clone();
+            let mut sc = |g: &mut Square| if rem_depth == 0 || !g.analyze().is_ongoing() {
+                let (log, l, o)=self.run(&g, player, alloc);
+                for mut i in log { alloc.dealloc_bulk(&mut i); }
+                for i in l { alloc.dealloc(i); }
+                o
+            } else  {
+                -self.gen_move(&g, 1-player, rem_depth-1, alloc).0
+            };
         let mut rng = rand::rng();
 
         if rng.random_bool(self.p) {
             let (x, y) = *moves.choose(&mut rng).unwrap();
             let p = game.prev();
             g.put(x, y, player);
-            let sc = if rem_depth == 0 || !g.analyze().is_ongoing() { self.run(&g, player, alloc).2 } else  {
-                -self.gen_move(&g, 1-player, rem_depth-1, alloc).0
-            };
+            let sc = sc(&mut g);
             g.reset(p, x, y);
             return (sc, (x, y));
         }
@@ -115,9 +123,7 @@ impl RLer {
         for (x, y) in moves {
             let p = game.prev();
             g.put(x, y, player);
-            let sc = if rem_depth == 0 || !g.analyze().is_ongoing() { self.run(&g, player, alloc).2 } else  {
-                -self.gen_move(&g, 1-player, rem_depth-1, alloc).0
-            };
+            let sc = sc(&mut g);
             if sc > bsc {
                 bsc = sc;
                 bm = (x, y);

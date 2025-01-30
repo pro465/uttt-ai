@@ -10,7 +10,12 @@ fn main() {
     let mut rler = get_model();
     let mut alloc = Alloc::new();
     train_model(&mut rler, &mut alloc);
+    let (p, min_p)=(rler.p, rler.min_p);
+    rler.p=0.;
+    rler.min_p=0.;
     while play_with_model(&mut rler, &mut alloc) {}
+    rler.p=p;
+    rler.min_p=min_p;
     save_model(rler);
 }
 
@@ -35,13 +40,13 @@ fn get_model() -> RLer {
 
 fn random_model() -> RLer {
     let fp = random_nn((-1.0, 1.0), &[9, 5, 3]);
-    let sp = random_nn((-1.0, 1.0), &[36, 5, 1]);
+    let sp = random_nn((-1.0, 1.0), &[36, 6, 1]);
     RLer {
         first_pass: fp,
         second_pass: sp,
         p: 0.9,
         p_decay: 0.995,
-        min_p: 0.05,
+        min_p: 0.01,
         lr: 0.05,
         lr_decay: 0.999,
         imp_decay: 0.9,
