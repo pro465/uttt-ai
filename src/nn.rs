@@ -1,7 +1,7 @@
+use crate::alloc::Alloc;
 use serde::{Deserialize, Serialize};
 use std::iter::once;
 use std::mem::swap;
-use crate::alloc::Alloc;
 
 fn f(x: f64) -> f64 {
     assert!(!x.is_nan());
@@ -30,6 +30,7 @@ impl NN {
             next.clear();
             for n in layer {
                 let mut val = 0.;
+                assert_eq!(inp.len() + 1, n.len());
                 for (i, w) in inp.iter().chain(once(&1.)).zip(n.iter()) {
                     val += i * w;
                 }
@@ -54,6 +55,8 @@ impl NN {
             for _ in 0..l {
                 next.push(0.);
             }
+            assert_eq!(layer.len(), inps.len());
+            assert_eq!(inps.len(), dt.len());
             for ((n, i), d) in layer.iter_mut().zip(&inps).zip(dt.iter()) {
                 let d = dfr(*i) * d;
                 let wsum = n.iter().map(|v| v.abs()).sum::<f64>();
@@ -64,6 +67,7 @@ impl NN {
                 }
             }
             swap(dt, &mut next);
+            dt.pop(); // bias
             alloc.dealloc(inps)
         }
         alloc.dealloc(next)

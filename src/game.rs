@@ -61,7 +61,7 @@ impl SubSquare {
     }
     pub fn reset(&mut self, i: usize) {
         self.board[i] = None;
-        self.state=GameResult::Ongoing;
+        self.state = GameResult::Ongoing;
     }
     pub fn state(&self) -> GameResult {
         self.state

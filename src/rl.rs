@@ -1,6 +1,6 @@
+use crate::alloc::Alloc;
 use crate::game::{GameResult, Move, PlayerId, Square};
 use crate::nn::NN;
-use crate::alloc::Alloc;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +30,7 @@ impl RLer {
                 let c = game.get1(i).get1(j);
                 let c = match c {
                     None => 0.,
-                    Some(p) if p == perspective => 1.,
+                    Some(0) => 1.,
                     _ => -1.,
                 };
                 input1.push(c);
@@ -38,41 +38,51 @@ impl RLer {
             self.first_pass.run(&mut input1, &mut l, alloc);
             input2.append(&mut input1);
             log.push(l);
-            l=Vec::new();
+            l = Vec::new();
         }
         alloc.dealloc(input1);
         for i in 0..9 {
-            input2.push([0., 1.][game.is_valid1(i) as usize]);
+            input2.push([-1., 1.][game.is_valid1(i) as usize]);
         }
+
+        let sign = [1., -1.][perspective];
+        input2.push(sign);
         self.second_pass.run(&mut input2, &mut l, alloc);
-        let res = input2[0];
+
+        let res = sign * input2[0];
         alloc.dealloc(input2);
         (log, l, res)
     }
 
-    pub fn train(&mut self, game: Vec<Square>, game_res: GameResult, alloc: &mut Alloc) -> GameResult {
+    pub fn train(
+        &mut self,
+        game: Vec<Square>,
+        game_res: GameResult,
+        alloc: &mut Alloc,
+    ) -> GameResult {
         let cost = match game_res {
-                GameResult::Won(i) => [1., -1.][i],
-                GameResult::Draw => return game_res,
-                _ => unreachable!(),
-            };
+            GameResult::Won(i) => [1., -1.][i],
+            GameResult::Draw => return game_res,
+            _ => unreachable!(),
+        };
         let mut lr = self.lr;
-        let mut d =alloc.alloc();
-        let mut d2=alloc.alloc();
-        for g in game.iter().rev() {
-            for p in 0..2 {
-                let fb = g.feedback(p);
-                let (log, l, o) = self.run(g, p, alloc);
-                let c = fb + [cost, -cost][p] - o;
-                d.push(c*lr);
-                self.second_pass.train(&mut d, l, alloc);
-                for (i, j) in d.chunks_exact(d.len() / 9).zip(log) {
-                    d2.extend_from_slice(i);
-                    self.first_pass.train(&mut d2, j, alloc);
-                    d2.clear();
-                }
-                d.clear();
+        let mut d = alloc.alloc();
+        let mut d2 = alloc.alloc();
+        for (p, g) in game.iter().enumerate().rev() {
+            let p = p & 1;
+            let sign = [1., -1.][p];
+            let fb = g.feedback(p);
+            let (log, l, o) = self.run(g, p, alloc);
+            let c = (fb + cost * sign - o) * sign;
+            d.push(c * lr);
+            self.second_pass.train(&mut d, l, alloc);
+            d.truncate(d.len() - 10);
+            for (i, j) in d.chunks_exact(d.len() / 9).zip(log) {
+                d2.extend_from_slice(i);
+                self.first_pass.train(&mut d2, j, alloc);
+                d2.clear();
             }
+            d.clear();
             lr *= self.imp_decay;
         }
         alloc.dealloc(d);
@@ -84,7 +94,11 @@ impl RLer {
         game_res
     }
 
-    pub fn gen_game_for_training(&self, recursion_depth: u64, alloc: &mut Alloc) -> (Vec<Square>, GameResult) {
+    pub fn gen_game_for_training(
+        &self,
+        recursion_depth: u64,
+        alloc: &mut Alloc,
+    ) -> (Vec<Square>, GameResult) {
         let mut g = Square::new();
         let mut v = Vec::new();
         let mut p = 0;
@@ -98,17 +112,29 @@ impl RLer {
         (v, g.analyze())
     }
 
-    pub fn gen_move(&self, game: &Square, player: PlayerId, rem_depth: u64, alloc: &mut Alloc) -> (f64, Move) {
+    pub fn gen_move(
+        &self,
+        game: &Square,
+        player: PlayerId,
+        rem_depth: u64,
+        alloc: &mut Alloc,
+    ) -> (f64, Move) {
         let moves = game.valid_moves();
         let mut g = game.clone();
-            let mut sc = |g: &mut Square| if rem_depth == 0 || !g.analyze().is_ongoing() {
-                let (log, l, o)=self.run(&g, player, alloc);
-                for mut i in log { alloc.dealloc_bulk(&mut i); }
-                for i in l { alloc.dealloc(i); }
+        let mut sc = |g: &mut Square| {
+            if rem_depth == 0 || !g.analyze().is_ongoing() {
+                let (log, l, o) = self.run(&g, player, alloc);
+                for mut i in log {
+                    alloc.dealloc_bulk(&mut i);
+                }
+                for i in l {
+                    alloc.dealloc(i);
+                }
                 o
-            } else  {
-                -self.gen_move(&g, 1-player, rem_depth-1, alloc).0
-            };
+            } else {
+                -self.gen_move(&g, 1 - player, rem_depth - 1, alloc).0
+            }
+        };
         let mut rng = rand::rng();
 
         if rng.random_bool(self.p) {
