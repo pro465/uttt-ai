@@ -1,3 +1,4 @@
+use game::GameResult;
 use rl::RLer;
 use std::io::*;
 use uttt::*;
@@ -47,26 +48,48 @@ fn random_model() -> RLer {
         p: 1.,
         p_decay: 0.995,
         min_p: 0.01,
-        lr: 0.03,
+        lr: 0.001,
         lr_decay: 0.99,
         imp_decay: 0.9,
-        min_lr: 0.001,
+        min_lr: 0.0001,
     }
 }
 
-fn train_model(rler: &mut RLer, alloc: &mut Alloc) {
+fn train_model(m1: &mut RLer, alloc: &mut Alloc) {
     let s = input("train the model? (y/n): ");
     if !["Y", "y"].contains(&s.trim()) {
         return;
     }
-    let n = input("number of training steps: ")
+    println!("for the adversarial model:");
+    let mut m2 = get_model();
+    let n_games = input("number of games: ")
         .trim()
         .parse()
         .expect("not an integer");
-    for i in 0..n {
-        let (g, gr) = rler.gen_game_for_training(REC_LVL, alloc);
-        println!("{i} {:?} {}", rler.train(g.clone(), gr, alloc), g.len());
+
+    let n_steps = input("number of training steps for each game: ")
+        .trim()
+        .parse()
+        .expect("not an integer");
+
+    let (mut wins, mut losses, mut draws) = (0, 0, 0);
+    for i in 0..n_games {
+        let (first, sec) = [(&*m1, &m2), (&m2, m1)][i&1];
+        let (g, gr) = first.gen_game_for_training(sec, REC_LVL, alloc);
+        println!("game {i}: result: {gr:?}\n=========================");
+        match gr {
+            GameResult::Won(p) => *[&mut wins, &mut losses][(p ^ i) & 1] += 1,
+            GameResult::Draw => draws += 1,
+            GameResult::Ongoing => unreachable!(),
+        }
+
+        for j in 0..n_steps {
+            m1.train(g.clone(), gr, alloc);
+            m2.train(g.clone(), gr, alloc);
+        }
+
     }
+    println!("wins: {wins}\nlosses: {losses}\ndraws: {draws}");
 }
 
 fn save_model(model: RLer) {
@@ -78,6 +101,7 @@ fn save_model(model: RLer) {
     let fname = input("file name: ");
     storage::save(model, fname.trim()).expect("an error occured");
 }
+
 
 fn play_with_model(model: &mut RLer, alloc: &mut Alloc) -> bool {
     let s = input("play with the model? (will train the model too) (y/n): ");

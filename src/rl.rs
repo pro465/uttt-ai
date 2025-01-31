@@ -20,7 +20,13 @@ pub struct RLer {
 }
 
 impl RLer {
-    pub fn run(&self, game: &Square, perspective: PlayerId, alloc: &mut Alloc) -> RLResult {
+    pub fn run(
+        &self,
+        game: &Square,
+        perspective: PlayerId,
+        prev: &Square,
+        alloc: &mut Alloc,
+    ) -> RLResult {
         let mut log = Vec::new();
         let mut l = Vec::new();
         let mut input1 = alloc.alloc();
@@ -68,12 +74,11 @@ impl RLer {
         let mut lr = self.lr;
         let mut d = alloc.alloc();
         let mut d2 = alloc.alloc();
-        for (p, g) in game.iter().enumerate().rev() {
+        for (p, g) in game[1..].iter().enumerate().rev() {
+            let prev = &game[p];
             let p = p & 1;
-            let sign = [1., -1.][p];
-            let fb = g.feedback(p);
-            let (log, l, o) = self.run(g, p, alloc);
-            let c = (fb + cost * sign - o) * sign;
+            let (log, l, o) = self.run(g, p, prev, alloc);
+            let c = cost - [o, -o][p];
             d.push(c * lr);
             self.second_pass.train(&mut d, l, alloc);
             d.truncate(d.len() - 10);
@@ -96,6 +101,7 @@ impl RLer {
 
     pub fn gen_game_for_training(
         &self,
+        other: &Self,
         recursion_depth: u64,
         alloc: &mut Alloc,
     ) -> (Vec<Square>, GameResult) {
@@ -104,7 +110,7 @@ impl RLer {
         let mut p = 0;
         while g.analyze().is_ongoing() {
             v.push(g.clone());
-            let (x, y) = self.gen_move(&g, p, recursion_depth, alloc).1;
+            let (x, y) = [self, other][p].gen_move(&g, p, recursion_depth, alloc).1;
             g.put(x, y, p);
             p ^= 1;
         }
@@ -119,11 +125,12 @@ impl RLer {
         rem_depth: u64,
         alloc: &mut Alloc,
     ) -> (f64, Move) {
+        let p = game.prev();
         let moves = game.valid_moves();
         let mut g = game.clone();
         let mut sc = |g: &mut Square| {
             if rem_depth == 0 || !g.analyze().is_ongoing() {
-                let (log, l, o) = self.run(&g, player, alloc);
+                let (log, l, o) = self.run(&g, player, game, alloc);
                 for mut i in log {
                     alloc.dealloc_bulk(&mut i);
                 }
@@ -139,7 +146,6 @@ impl RLer {
 
         if rng.random_bool(self.p) {
             let (x, y) = *moves.choose(&mut rng).unwrap();
-            let p = game.prev();
             g.put(x, y, player);
             let sc = sc(&mut g);
             g.reset(p, x, y);
@@ -147,7 +153,6 @@ impl RLer {
         }
         let (mut bsc, mut bm) = (f64::NEG_INFINITY, (9, 9));
         for (x, y) in moves {
-            let p = game.prev();
             g.put(x, y, player);
             let sc = sc(&mut g);
             if sc > bsc {
