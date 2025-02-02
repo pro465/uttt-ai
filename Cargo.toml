@@ -9,3 +9,6 @@ edition = "2021"
 rand = "0.9"
 ron = "0.8"
 serde = { version = "1", features = ["derive"] }
+
+[profile.release]
+debug = false

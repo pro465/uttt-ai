@@ -12,7 +12,7 @@ fn f(x: f64) -> f64 {
 fn dfr(x: f64) -> f64 {
     assert!(!x.is_nan());
     let t = x.cosh();
-    t * t
+    (t * t).min(1000.)
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -59,7 +59,7 @@ impl NN {
             assert_eq!(inps.len(), dt.len());
             for ((n, i), d) in layer.iter_mut().zip(&inps).zip(dt.iter()) {
                 let d = dfr(*i) * d;
-                let wsum = n.iter().map(|v| v.abs()).sum::<f64>();
+                let wsum = n.iter().map(|v| v.abs()).sum::<f64>().max(0.001);
                 for (idx, w) in n.iter_mut().enumerate() {
                     let cont = *w / wsum;
                     *w += d * cont;
