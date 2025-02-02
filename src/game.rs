@@ -1,3 +1,4 @@
+use crate::alloc::Alloc;
 pub type PlayerId = usize;
 
 pub type Cell = Option<PlayerId>;
@@ -126,8 +127,8 @@ impl Square {
                 Some(z) => x == z,
             }
     }
-    pub fn valid_moves(&self) -> Vec<Move> {
-        let mut moves = Vec::new();
+    pub fn valid_moves(&self, alloc: &mut Alloc) -> Vec<Move> {
+        let mut moves = alloc.alloc_mvec();
         for i in 0..9 {
             if !self.is_valid1(i) {
                 continue;

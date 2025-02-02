@@ -126,7 +126,7 @@ impl RLer {
         alloc: &mut Alloc,
     ) -> (f64, Move) {
         let p = game.prev();
-        let moves = game.valid_moves();
+        let moves = game.valid_moves(alloc);
         let mut g = game.clone();
         let mut sc = |g: &mut Square| {
             if rem_depth == 0 || !g.analyze().is_ongoing() {
@@ -149,10 +149,11 @@ impl RLer {
             g.put(x, y, player);
             let sc = sc(&mut g);
             g.reset(p, x, y);
+            alloc.dealloc_mvec(moves);
             return (sc, (x, y));
         }
         let (mut bsc, mut bm) = (f64::NEG_INFINITY, (9, 9));
-        for (x, y) in moves {
+        for &(x, y) in &moves {
             g.put(x, y, player);
             let sc = sc(&mut g);
             if sc > bsc {
@@ -161,6 +162,7 @@ impl RLer {
             }
             g.reset(p, x, y);
         }
+        alloc.dealloc_mvec(moves);
         (bsc, bm)
     }
 }

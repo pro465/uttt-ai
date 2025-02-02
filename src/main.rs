@@ -2,7 +2,7 @@ use game::GameResult;
 use rl::RLer;
 use std::io::*;
 use uttt::*;
-
+use rand::prelude::*;
 use alloc::Alloc;
 
 const REC_LVL: u64 = 2;
@@ -41,16 +41,16 @@ fn get_model() -> RLer {
 
 fn random_model() -> RLer {
     let fp = random_nn((-1.0, 1.0), &[9, 5, 3]);
-    let sp = random_nn((-1.0, 1.0), &[37, 6, 1]);
+    let sp = random_nn((-1.0, 1.0), &[37, 15, 5, 1]);
     RLer {
         first_pass: fp,
         second_pass: sp,
         p: 1.,
         p_decay: 0.995,
-        min_p: 0.01,
+        min_p: 0.05,
         lr: 0.001,
         lr_decay: 0.99,
-        imp_decay: 0.9,
+        imp_decay: 1.,
         min_lr: 0.0001,
     }
 }
@@ -61,7 +61,12 @@ fn train_model(m1: &mut RLer, alloc: &mut Alloc) {
         return;
     }
     println!("for the adversarial model:");
-    let mut m2 = get_model();
+    let mut models = Vec::new();
+    loop {
+        models.push(get_model());
+        let s = input("add another adversarial model? (y/n): ");
+        if !["Y", "y"].contains(&s.trim()) { break }
+    }
     let n_games = input("number of games: ")
         .trim()
         .parse()
@@ -72,9 +77,11 @@ fn train_model(m1: &mut RLer, alloc: &mut Alloc) {
         .parse()
         .expect("not an integer");
 
+    let mut rng = rand::rng();
     let (mut wins, mut losses, mut draws) = (0, 0, 0);
     for i in 0..n_games {
-        let (first, sec) = [(&*m1, &m2), (&m2, m1)][i&1];
+        let m2 = models.choose_mut(&mut rng).expect("number of models is always non-zero");
+        let (first, sec) = [(&*m1, &*m2), (m2, m1)][i&1];
         let (g, gr) = first.gen_game_for_training(sec, REC_LVL, alloc);
         println!("game {i}: result: {gr:?}\n=========================");
         match gr {
